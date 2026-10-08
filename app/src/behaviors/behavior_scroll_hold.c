@@ -37,12 +37,25 @@ void zmk_trackpad_scroll_mark_used(void) { atomic_set(&scroll_used, 1); }
 struct behavior_scroll_hold_config {
     struct zmk_behavior_binding tap_binding;
     uint32_t tap_ms;
+    // With pass-through the bound behavior follows the key exactly: pressed
+    // when the key goes down, released when it comes up, with scrolling on
+    // top. It responds immediately and can be held, at the cost of also
+    // being reported during a scroll. Without it, the bound behavior is only
+    // tapped on release, and only if the trackpad did not move.
+    bool pass_through;
 };
 
 static int on_scroll_hold_pressed(struct zmk_behavior_binding *binding,
                                   struct zmk_behavior_binding_event event) {
+    const struct device *dev = zmk_behavior_get_binding(binding->behavior_dev);
+    const struct behavior_scroll_hold_config *cfg = dev->config;
+
     atomic_set(&scroll_used, 0);
     atomic_set(&scroll_held, 1);
+
+    if (cfg->pass_through) {
+        behavior_keymap_binding_pressed((struct zmk_behavior_binding *)&cfg->tap_binding, event);
+    }
     return ZMK_BEHAVIOR_OPAQUE;
 }
 
@@ -53,7 +66,9 @@ static int on_scroll_hold_released(struct zmk_behavior_binding *binding,
 
     atomic_set(&scroll_held, 0);
 
-    if (atomic_get(&scroll_used) == 0) {
+    if (cfg->pass_through) {
+        behavior_keymap_binding_released((struct zmk_behavior_binding *)&cfg->tap_binding, event);
+    } else if (atomic_get(&scroll_used) == 0) {
         zmk_behavior_queue_add(event.position, cfg->tap_binding, true, cfg->tap_ms);
         zmk_behavior_queue_add(event.position, cfg->tap_binding, false, 0);
     }
@@ -81,6 +96,7 @@ static int behavior_scroll_hold_init(const struct device *dev) { return 0; }
     static const struct behavior_scroll_hold_config behavior_scroll_hold_config_##n = {           \
         .tap_binding = _TRANSFORM_ENTRY(0, n),                                                     \
         .tap_ms = DT_INST_PROP(n, tap_ms),                                                         \
+        .pass_through = DT_INST_PROP(n, pass_through),                                             \
     };                                                                                             \
     BEHAVIOR_DT_INST_DEFINE(n, behavior_scroll_hold_init, NULL, NULL,                              \
                             &behavior_scroll_hold_config_##n, POST_KERNEL,                         \

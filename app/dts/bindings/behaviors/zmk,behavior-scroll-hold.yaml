@@ -18,3 +18,8 @@ properties:
     type: int
     default: 30
     description: How long the tapped behavior is held before it is released.
+  pass-through:
+    type: boolean
+    description: |
+      Press the bound behavior when the key goes down and release it when the
+      key comes up, as well as scrolling, instead of tapping it on release.
