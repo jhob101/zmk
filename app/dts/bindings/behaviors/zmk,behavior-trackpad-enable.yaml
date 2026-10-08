@@ -1,0 +1,10 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Switch the trackpad's cursor and scroll output on or off. The parameter is
+  1 for on, 0 for off. Not saved: the trackpad is always on after power-up.
+
+compatible: "zmk,behavior-trackpad-enable"
+
+include: one_param.yaml

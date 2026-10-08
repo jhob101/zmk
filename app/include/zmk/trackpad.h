@@ -9,8 +9,8 @@
 #include <stdbool.h>
 
 /**
- * Shared state between the scroll-hold behavior (set from key events) and the
- * trackpad polling loop in main.c (which turns motion into scroll reports).
+ * Shared state between keymap behaviors (set from key events) and the trackpad
+ * polling loop in main.c (which turns motion into cursor and scroll reports).
  */
 
 /** True while a key bound to the scroll-hold behavior is held down. */
@@ -21,3 +21,7 @@ bool zmk_trackpad_scroll_held(void);
  * the key's release is treated as the end of a scroll rather than a tap.
  */
 void zmk_trackpad_scroll_mark_used(void);
+
+/** False while the trackpad is switched off by the trackpad-enable behavior. */
+bool zmk_trackpad_enabled(void);
+void zmk_trackpad_set_enabled(bool enabled);

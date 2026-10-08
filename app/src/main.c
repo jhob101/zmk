@@ -34,7 +34,7 @@ LOG_MODULE_REGISTER(zmk, CONFIG_ZMK_LOG_LEVEL);
 // read here, so this loop never polls key or modifier state itself. Polling
 // modifier state from this thread is what raced against its blocking I2C
 // reads in an earlier hold-Shift-to-scroll attempt.
-#include <zmk/trackpad_scroll.h>
+#include <zmk/trackpad.h>
 
 // fix9900: the trackpad-scroll condition, magnitude, and axis-lock math were
 // all confirmed correct via live libinput/browser captures, but events
@@ -97,12 +97,19 @@ int main(void) {
             int8_t y = xy_pos.val1;
             int8_t scroll_x = 0;
             int8_t scroll_y = 0;
+            if (!zmk_trackpad_enabled()) {
+                // Switched off from the keymap (the keyboard lock). The sensor
+                // has still been read above, so no motion builds up to be
+                // released in one jump when it is switched back on.
+                x = 0;
+                y = 0;
+            }
             // fix9900: originally gated on CapsLock/ScrollLock HID indicator
             // state, which meant toggling CapsLock for normal typing
             // silently broke trackpad cursor movement. CapsLock is now a
             // plain modifier with zero side effects on the trackpad. Scroll
             // mode is now held from the keymap (see the note above the
-            // trackpad_scroll.h include). Scoped to bb9900/bbcase only, not
+            // trackpad.h include). Scoped to bb9900/bbcase only, not
             // touching the other board families' identical-looking blocks
             // below, no way to test them.
             if (zmk_trackpad_scroll_held()) {
