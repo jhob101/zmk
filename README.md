@@ -1,18 +1,18 @@
 # ZMK for the uConsole trackpad keyboard
 
 This is the firmware source behind
-[jhob101/fix9900](https://github.com/jhob101/fix9900), the keymap and build
+[jhob101/uconsole-bb9900-keyboard](https://github.com/jhob101/uconsole-bb9900-keyboard), the keymap and build
 config for the [hack2you uConsole trackpad keyboard kit](https://hack2you.tech/products/uconsole-trackpad-keyboard).
 If you only want to build, flash or remap the keyboard, start there. This repo
 holds the C code that the keymap alone cannot express.
 
-It is **not** a copy of upstream ZMK, and `fix9900` will not build without it.
+It is **not** a copy of upstream ZMK, and that repo will not build without it.
 
 ## Branches
 
 | Branch | What it is |
 | --- | --- |
-| `main` | The keyboard firmware. `fix9900`'s `config/west.yml` builds against this branch. |
+| `main` | The keyboard firmware. `uconsole-bb9900-keyboard`'s `config/west.yml` builds against this branch. |
 | `upstream-main` | Upstream ZMK's `main` as it was when this fork was made. Kept for reference only. |
 
 `main` here does not follow upstream ZMK's `main`. It is based on a December
@@ -32,7 +32,7 @@ Four layers, each a fork of the one before:
 
 ## What this fork adds
 
-All of it is used by the `fix9900` keymap. File paths are under `app/`.
+All of it is used by the `uconsole-bb9900-keyboard` keymap. File paths are under `app/`.
 
 ### Hold-to-scroll
 
@@ -80,11 +80,11 @@ Shift armed, and the next plain press went up as well.
 ## Building
 
 This repo is not built on its own. Follow the build instructions in
-[jhob101/fix9900](https://github.com/jhob101/fix9900#building), which fetches
+[jhob101/uconsole-bb9900-keyboard](https://github.com/jhob101/uconsole-bb9900-keyboard#building), which fetches
 this repo for you.
 
 To try a change here, push it to a branch and point `revision:` in
-`fix9900`'s `config/west.yml` at that branch.
+`uconsole-bb9900-keyboard`'s `config/west.yml` at that branch.
 
 ## Licence
 
