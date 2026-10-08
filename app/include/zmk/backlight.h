@@ -9,6 +9,8 @@
 int zmk_backlight_on();
 int zmk_backlight_off();
 int zmk_backlight_toggle();
+int zmk_backlight_suspend();
+int zmk_backlight_resume();
 bool zmk_backlight_is_on();
 
 int zmk_backlight_set_brt(uint8_t brightness);

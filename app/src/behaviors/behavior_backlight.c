@@ -71,6 +71,10 @@ static int on_keymap_binding_pressed(struct zmk_behavior_binding *binding,
     }
     case BL_SET_CMD:
         return zmk_backlight_set_brt(binding->param2);
+    case BL_SUSPEND_CMD:
+        return zmk_backlight_suspend();
+    case BL_RESUME_CMD:
+        return zmk_backlight_resume();
     default:
         LOG_ERR("Unknown backlight command: %d", binding->param1);
     }

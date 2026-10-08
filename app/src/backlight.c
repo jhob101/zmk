@@ -42,8 +42,13 @@ struct backlight_state {
 static struct backlight_state state = {.brightness = CONFIG_ZMK_BACKLIGHT_BRT_START,
                                        .on = IS_ENABLED(CONFIG_ZMK_BACKLIGHT_ON_START)};
 
+// While suspended the LEDs are held off, whatever the on/off state says.
+// The state itself is left alone (and so is never saved as "off"), which is
+// what lets resume bring back exactly what was there before. Not persisted.
+static bool suspended = false;
+
 static int zmk_backlight_update() {
-    uint8_t brt = zmk_backlight_get_brt();
+    uint8_t brt = suspended ? 0 : zmk_backlight_get_brt();
     LOG_DBG("Update backlight brightness: %d%%", brt);
 
     for (int i = 0; i < BACKLIGHT_NUM_LEDS; i++) {
@@ -124,6 +129,16 @@ int zmk_backlight_off() {
 }
 
 int zmk_backlight_toggle() { return state.on ? zmk_backlight_off() : zmk_backlight_on(); }
+
+int zmk_backlight_suspend() {
+    suspended = true;
+    return zmk_backlight_update();
+}
+
+int zmk_backlight_resume() {
+    suspended = false;
+    return zmk_backlight_update();
+}
 
 bool zmk_backlight_is_on() { return state.on; }
 
