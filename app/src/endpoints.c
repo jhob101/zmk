@@ -221,6 +221,28 @@ int zmk_endpoints_send_mouse_report() {
 }
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
 
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+// USB only. There is no matching HID-over-GATT characteristic, so over BLE the
+// joystick report is simply not sent.
+int zmk_endpoints_send_joystick_report() {
+    switch (current_instance.transport) {
+#if IS_ENABLED(CONFIG_ZMK_USB)
+    case ZMK_TRANSPORT_USB: {
+        int err = zmk_usb_hid_send_joystick_report();
+        if (err) {
+            LOG_ERR("FAILED TO SEND OVER USB: %d", err);
+        }
+        return err;
+    }
+#endif /* IS_ENABLED(CONFIG_ZMK_USB) */
+    default:
+        break;
+    }
+
+    return -ENOTSUP;
+}
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+
 #if IS_ENABLED(CONFIG_SETTINGS)
 
 static int endpoints_handle_set(const char *name, size_t len, settings_read_cb read_cb,
@@ -328,9 +350,15 @@ static void disconnect_current_endpoint() {
 #if IS_ENABLED(CONFIG_ZMK_MOUSE)
     zmk_hid_mouse_clear();
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+    zmk_hid_joystick_clear();
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)
 
     zmk_endpoints_send_report(HID_USAGE_KEY);
     zmk_endpoints_send_report(HID_USAGE_CONSUMER);
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+    zmk_endpoints_send_joystick_report();
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)
 }
 
 static void update_current_endpoint(void) {

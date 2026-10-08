@@ -429,6 +429,15 @@ config TRACKPAD_SPEEDMULTIPLIER_VERTICAL
 #Display/LED Options
 endmenu
 
+config ZMK_JOYSTICK
+    bool "Joystick HID report (USB only)"
+    depends on ZMK_USB
+    help
+      Adds a joystick (two axes, six buttons) to the HID report descriptor,
+      driven by the joystick-button and joystick-dpad behaviors. Sent over
+      USB only: the descriptor is shared with BLE, but no HID-over-GATT
+      characteristic is added for it.
+
 menu "Mouse Options"
 
 rsource "src/mouse/Kconfig"

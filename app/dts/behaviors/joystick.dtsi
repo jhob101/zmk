@@ -1,0 +1,20 @@
+/*
+ * Copyright (c) 2026 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+/ {
+    behaviors {
+        /* &jb N: joystick button N, counted from 0. */
+        /omit-if-no-ref/ jb: joystick_button {
+            compatible = "zmk,behavior-joystick-button";
+            #binding-cells = <1>;
+        };
+        /* &jd JD_LEFT / JD_RIGHT / JD_UP / JD_DOWN: D-pad on the X and Y axes. */
+        /omit-if-no-ref/ jd: joystick_dpad {
+            compatible = "zmk,behavior-joystick-dpad";
+            #binding-cells = <1>;
+        };
+    };
+};

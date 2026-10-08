@@ -1,0 +1,10 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Joystick D-pad direction behavior. Drives the X and Y axes to their limits.
+  The parameter is one of JD_LEFT, JD_RIGHT, JD_UP, JD_DOWN.
+
+compatible: "zmk,behavior-joystick-dpad"
+
+include: one_param.yaml

@@ -476,3 +476,43 @@ struct zmk_hid_mouse_report *zmk_hid_get_mouse_report() {
 }
 
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
+
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+
+static struct zmk_hid_joystick_report joystick_report = {
+    .report_id = ZMK_HID_REPORT_ID_JOYSTICK, .body = {.axes = {0}, .buttons = 0}};
+
+int zmk_hid_joystick_button_press(uint8_t button) {
+    if (button >= ZMK_HID_JOYSTICK_NUM_BUTTONS) {
+        return -EINVAL;
+    }
+    WRITE_BIT(joystick_report.body.buttons, button, 1);
+    return 0;
+}
+
+int zmk_hid_joystick_button_release(uint8_t button) {
+    if (button >= ZMK_HID_JOYSTICK_NUM_BUTTONS) {
+        return -EINVAL;
+    }
+    WRITE_BIT(joystick_report.body.buttons, button, 0);
+    return 0;
+}
+
+int zmk_hid_joystick_axis_set(uint8_t axis, int8_t value) {
+    if (axis >= ZMK_HID_JOYSTICK_NUM_AXES) {
+        return -EINVAL;
+    }
+    joystick_report.body.axes[axis] =
+        CLAMP(value, -ZMK_HID_JOYSTICK_AXIS_MAX, ZMK_HID_JOYSTICK_AXIS_MAX);
+    return 0;
+}
+
+void zmk_hid_joystick_clear() {
+    memset(&joystick_report.body, 0, sizeof(joystick_report.body));
+}
+
+struct zmk_hid_joystick_report *zmk_hid_get_joystick_report() {
+    return &joystick_report;
+}
+
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)

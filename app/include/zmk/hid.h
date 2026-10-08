@@ -25,6 +25,11 @@
 
 #define ZMK_HID_MOUSE_NUM_BUTTONS 0x05
 
+// Two axes plus a row of buttons, the layout the uConsole QMK firmware used.
+#define ZMK_HID_JOYSTICK_NUM_BUTTONS 6
+#define ZMK_HID_JOYSTICK_NUM_AXES 2
+#define ZMK_HID_JOYSTICK_AXIS_MAX 127
+
 // See https://www.usb.org/sites/default/files/hid1_11.pdf section 6.2.2.4 Main Items
 
 #define ZMK_HID_MAIN_VAL_DATA (0x00 << 0)
@@ -58,6 +63,7 @@
 #define ZMK_HID_REPORT_ID_LEDS 0x01
 #define ZMK_HID_REPORT_ID_CONSUMER 0x02
 #define ZMK_HID_REPORT_ID_MOUSE 0x03
+#define ZMK_HID_REPORT_ID_JOYSTICK 0x04
 
 // Needed until Zephyr offers a 2 byte usage macro
 #define HID_USAGE16(idx)                                                                           \
@@ -186,6 +192,38 @@ static const uint8_t zmk_hid_report_desc[] = {
     HID_END_COLLECTION,
     HID_END_COLLECTION,
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
+
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),
+    HID_USAGE(HID_USAGE_GD_JOYSTICK),
+    HID_COLLECTION(HID_COLLECTION_APPLICATION),
+    HID_REPORT_ID(ZMK_HID_REPORT_ID_JOYSTICK),
+    HID_COLLECTION(HID_COLLECTION_PHYSICAL),
+    // X and Y, signed 8 bit, absolute.
+    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),
+    HID_USAGE(HID_USAGE_GD_X),
+    HID_USAGE(HID_USAGE_GD_Y),
+    HID_LOGICAL_MIN8(-ZMK_HID_JOYSTICK_AXIS_MAX),
+    HID_LOGICAL_MAX8(ZMK_HID_JOYSTICK_AXIS_MAX),
+    HID_REPORT_SIZE(0x08),
+    HID_REPORT_COUNT(ZMK_HID_JOYSTICK_NUM_AXES),
+    HID_INPUT(ZMK_HID_MAIN_VAL_DATA | ZMK_HID_MAIN_VAL_VAR | ZMK_HID_MAIN_VAL_ABS),
+    // Buttons, one bit each.
+    HID_USAGE_PAGE(HID_USAGE_BUTTON),
+    HID_USAGE_MIN8(0x01),
+    HID_USAGE_MAX8(ZMK_HID_JOYSTICK_NUM_BUTTONS),
+    HID_LOGICAL_MIN8(0x00),
+    HID_LOGICAL_MAX8(0x01),
+    HID_REPORT_SIZE(0x01),
+    HID_REPORT_COUNT(ZMK_HID_JOYSTICK_NUM_BUTTONS),
+    HID_INPUT(ZMK_HID_MAIN_VAL_DATA | ZMK_HID_MAIN_VAL_VAR | ZMK_HID_MAIN_VAL_ABS),
+    // Constant padding up to a whole byte.
+    HID_REPORT_SIZE(8 - ZMK_HID_JOYSTICK_NUM_BUTTONS),
+    HID_REPORT_COUNT(0x01),
+    HID_INPUT(ZMK_HID_MAIN_VAL_CONST | ZMK_HID_MAIN_VAL_VAR | ZMK_HID_MAIN_VAL_ABS),
+    HID_END_COLLECTION,
+    HID_END_COLLECTION,
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)
 };
 
 #if IS_ENABLED(CONFIG_ZMK_USB_BOOT)
@@ -264,6 +302,21 @@ struct zmk_hid_mouse_report {
 
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
 
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+struct zmk_hid_joystick_report_body {
+    int8_t axes[ZMK_HID_JOYSTICK_NUM_AXES];
+    uint8_t buttons;
+} __packed;
+
+struct zmk_hid_joystick_report {
+    uint8_t report_id;
+    struct zmk_hid_joystick_report_body body;
+} __packed;
+
+BUILD_ASSERT(ZMK_HID_JOYSTICK_NUM_BUTTONS >= 1 && ZMK_HID_JOYSTICK_NUM_BUTTONS < 8,
+             "Joystick buttons must fit one byte with at least one bit of padding");
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+
 zmk_mod_flags_t zmk_hid_get_explicit_mods();
 int zmk_hid_register_mod(zmk_mod_t modifier);
 int zmk_hid_unregister_mod(zmk_mod_t modifier);
@@ -301,6 +354,14 @@ void zmk_hid_mouse_movement_update(int16_t x, int16_t y);
 void zmk_hid_mouse_scroll_update(int8_t x, int8_t y);
 void zmk_hid_mouse_clear();
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
+
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+int zmk_hid_joystick_button_press(uint8_t button);
+int zmk_hid_joystick_button_release(uint8_t button);
+int zmk_hid_joystick_axis_set(uint8_t axis, int8_t value);
+void zmk_hid_joystick_clear();
+struct zmk_hid_joystick_report *zmk_hid_get_joystick_report();
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)
 
 struct zmk_hid_keyboard_report *zmk_hid_get_keyboard_report();
 struct zmk_hid_consumer_report *zmk_hid_get_consumer_report();

@@ -1,0 +1,8 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: Joystick button press/release behavior. The parameter is the button index, from 0.
+
+compatible: "zmk,behavior-joystick-button"
+
+include: one_param.yaml

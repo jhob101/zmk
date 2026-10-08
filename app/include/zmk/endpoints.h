@@ -73,3 +73,7 @@ int zmk_endpoints_send_report(uint16_t usage_page);
 #if IS_ENABLED(CONFIG_ZMK_MOUSE)
 int zmk_endpoints_send_mouse_report();
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
+
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+int zmk_endpoints_send_joystick_report();
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)

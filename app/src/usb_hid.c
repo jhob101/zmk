@@ -78,6 +78,14 @@ static int get_report_cb(const struct device *dev, struct usb_setup_packet *setu
         *len = sizeof(*report);
         break;
     }
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+    case ZMK_HID_REPORT_ID_JOYSTICK: {
+        struct zmk_hid_joystick_report *report = zmk_hid_get_joystick_report();
+        *data = (uint8_t *)report;
+        *len = sizeof(*report);
+        break;
+    }
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)
     default:
         LOG_ERR("Invalid report ID %d requested", setup->wValue & HID_GET_REPORT_ID_MASK);
         return -EINVAL;
@@ -176,6 +184,19 @@ int zmk_usb_hid_send_mouse_report() {
     return zmk_usb_hid_send_report((uint8_t *)report, sizeof(*report));
 }
 #endif // IS_ENABLED(CONFIG_ZMK_MOUSE)
+
+#if IS_ENABLED(CONFIG_ZMK_JOYSTICK)
+int zmk_usb_hid_send_joystick_report() {
+#if IS_ENABLED(CONFIG_ZMK_USB_BOOT)
+    if (hid_protocol == HID_PROTOCOL_BOOT) {
+        return -ENOTSUP;
+    }
+#endif /* IS_ENABLED(CONFIG_ZMK_USB_BOOT) */
+
+    struct zmk_hid_joystick_report *report = zmk_hid_get_joystick_report();
+    return zmk_usb_hid_send_report((uint8_t *)report, sizeof(*report));
+}
+#endif // IS_ENABLED(CONFIG_ZMK_JOYSTICK)
 
 static int zmk_usb_hid_init(void) {
     hid_dev = device_get_binding("HID_0");
