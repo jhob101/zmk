@@ -1,0 +1,23 @@
+/*
+ * Copyright (c) 2026 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#pragma once
+
+#include <stdbool.h>
+
+/**
+ * Shared state between the scroll-hold behavior (set from key events) and the
+ * trackpad polling loop in main.c (which turns motion into scroll reports).
+ */
+
+/** True while a key bound to the scroll-hold behavior is held down. */
+bool zmk_trackpad_scroll_held(void);
+
+/**
+ * Called by the trackpad loop when it sees motion while scroll is held, so
+ * the key's release is treated as the end of a scroll rather than a tap.
+ */
+void zmk_trackpad_scroll_mark_used(void);

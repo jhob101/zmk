@@ -1,0 +1,20 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Hold to scroll with the trackpad. Released without any trackpad motion, it
+  taps the bound behavior instead.
+
+compatible: "zmk,behavior-scroll-hold"
+
+include: zero_param.yaml
+
+properties:
+  bindings:
+    type: phandle-array
+    required: true
+    description: The single behavior to tap when the key is released unused.
+  tap-ms:
+    type: int
+    default: 30
+    description: How long the tapped behavior is held before it is released.

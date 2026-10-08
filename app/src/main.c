@@ -25,45 +25,16 @@ LOG_MODULE_REGISTER(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/mouse.h>
 #endif /* CONFIG_ZMK_MOUSE */
 
-// fix9900: originally hold-Shift-to-scroll, checked via an event listener
-// (fixing an earlier version that polled zmk_hid_mod_is_pressed() and hit
-// a real race condition against this thread's blocking I2C reads).
-// Switched from hold-a-modifier to click-to-toggle on the
-// trackpad's own center click instead: the whole gesture now only needs
-// the hand/thumb already on the trackpad, no coordinating a separate hand
-// holding a keyboard modifier down for the entire drag. Also removes any
-// possible interaction between a continuously-held keyboard modifier and
-// the mouse interface's own event stream, which was one open question
-// while chasing a separate scroll-interpretation issue in some apps.
+// Trackpad scroll mode is hold-to-scroll: it is active while a key bound to
+// the scroll-hold behavior (Select, on the uConsole keymap) is held down, as
+// in the uConsole QMK firmware. This replaces fix9900's click-to-toggle on
+// the trackpad's own press, which is a plain mouse click again.
 //
-// The trackball/center-click position (matrix position 2, confirmed by
-// cross-referencing all three layers against the empirical keymap-audit
-// sweep: BTN_LEFT/BTN_RIGHT/BTN_RIGHT across base/LFN/RFN is a unique
-// fingerprint no other position matches) previously sent a left or right
-// mouse click depending on layer. Repurposed entirely as the scroll-mode
-// toggle; its keymap bindings are now &none in all three layers, since L
-// and R buttons already cover left/right click.
-#include <zmk/event_manager.h>
-#include <zmk/events/position_state_changed.h>
-
-#define TRACKPAD_CLICK_POSITION 2
-
-static volatile bool scroll_mode_on = false;
-
-static int trackpad_click_toggle_listener(const zmk_event_t *eh) {
-    struct zmk_position_state_changed *ev = as_zmk_position_state_changed(eh);
-    if (ev == NULL) {
-        return ZMK_EV_EVENT_BUBBLE;
-    }
-    if (ev->position == TRACKPAD_CLICK_POSITION && ev->state) {
-        // toggle on press only, not release, so one click = one flip
-        scroll_mode_on = !scroll_mode_on;
-    }
-    return ZMK_EV_EVENT_BUBBLE;
-}
-
-ZMK_LISTENER(trackpad_click_toggle, trackpad_click_toggle_listener);
-ZMK_SUBSCRIPTION(trackpad_click_toggle, zmk_position_state_changed);
+// The held state is set from key events in behavior_scroll_hold.c and only
+// read here, so this loop never polls key or modifier state itself. Polling
+// modifier state from this thread is what raced against its blocking I2C
+// reads in an earlier hold-Shift-to-scroll attempt.
+#include <zmk/trackpad_scroll.h>
 
 // fix9900: the trackpad-scroll condition, magnitude, and axis-lock math were
 // all confirmed correct via live libinput/browser captures, but events
@@ -129,12 +100,17 @@ int main(void) {
             // fix9900: originally gated on CapsLock/ScrollLock HID indicator
             // state, which meant toggling CapsLock for normal typing
             // silently broke trackpad cursor movement. CapsLock is now a
-            // plain modifier with zero side effects on the trackpad. Then
-            // briefly hold-Shift-to-scroll; now click-the-trackpad-to-toggle
-            // (see trackpad_click_toggle_listener above for why). Scoped to
-            // bb9900/bbcase only, not touching the other board families'
-            // identical-looking blocks below, no way to test them.
-            if (scroll_mode_on) {
+            // plain modifier with zero side effects on the trackpad. Scroll
+            // mode is now held from the keymap (see the note above the
+            // trackpad_scroll.h include). Scoped to bb9900/bbcase only, not
+            // touching the other board families' identical-looking blocks
+            // below, no way to test them.
+            if (zmk_trackpad_scroll_held()) {
+                if (x != 0 || y != 0) {
+                    // tells the held key it was used to scroll, so its
+                    // release does not also send its tap
+                    zmk_trackpad_scroll_mark_used();
+                }
                 // fix9900: the original vendor code picked a divisor from
                 // |y| alone and applied it to BOTH x and y unconditionally.
                 // That meant any sensor noise on the "wrong" axis during a
