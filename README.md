@@ -6,6 +6,9 @@ config for the [hack2you uConsole trackpad keyboard kit](https://hack2you.tech/p
 If you only want to build, flash or remap the keyboard, start there. This repo
 holds the C code that the keymap alone cannot express.
 
+It is for the V2.1 keyboard. It may work on other versions of the keyboard,
+but it has only been tested on V2.1.
+
 It is **not** a copy of upstream ZMK, and that repo will not build without it.
 
 ## Branches
@@ -91,4 +94,4 @@ To try a change here, push it to a branch and point `revision:` in
 MIT, the same as ZMK. See [LICENSE](LICENSE).
 
 The changes in this fork were written with the help of Claude (Anthropic) and
-tested on one keyboard. Treat them accordingly.
+tested on one V2.1 keyboard. Treat them accordingly.
