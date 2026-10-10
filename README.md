@@ -53,7 +53,12 @@ bound to it is held, trackpad motion scrolls instead of moving the pointer.
   releasing the hold key leaves the switch as it was.
 
 This replaces thoughtfix's click-the-trackpad-to-toggle scroll mode. The axis
-locking and batched scroll reports in `src/main.c` are unchanged.
+locking and batched scroll reports in `src/main.c` are kept.
+
+Scroll motion is accumulated in fractions of a tick, so scroll speed follows
+finger speed. Before, any motion in a poll counted as a whole tick, which put a
+floor under the scroll rate. `CONFIG_TRACKPAD_SCROLL_SPEED` scales scrolling in
+percent, independent of the pointer speed.
 
 ### USB joystick
 
