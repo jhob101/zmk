@@ -448,6 +448,14 @@ config INPUT_A320_DIAG
       CONFIG_ZMK_USB_LOGGING. Not for everyday use: it adds several I2C
       reads to every poll.
 
+config TRACKPAD_SCROLL_SPEED
+    int "Trackpad scroll speed in percent"
+    range 1 400
+    default 100
+    help
+      Scales how far the trackpad scrolls for a given movement. 100 is the
+      original rate, 50 is half. Independent of the pointer speed.
+
 config TRACKPAD_SCROLL_INTERVAL
     int "Trackpad scroll interval"
     range 10 500

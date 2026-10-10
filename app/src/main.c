@@ -52,6 +52,24 @@ LOG_MODULE_REGISTER(zmk, CONFIG_ZMK_LOG_LEVEL);
 #define SCROLL_SEND_INTERVAL_MS 80
 static int32_t scroll_accum_x = 0;
 static int32_t scroll_accum_y = 0;
+// CONFIG_TRACKPAD_SCROLL_SPEED scales each batch, in percent. The part of a
+// tick left over is carried into the next batch rather than dropped, so slow
+// scrolling is slowed in proportion instead of being rounded away.
+static int32_t scroll_rem_x = 0;
+static int32_t scroll_rem_y = 0;
+
+static int8_t scroll_scale(int32_t ticks, int32_t *rem) {
+    int32_t hundredths = ticks * CONFIG_TRACKPAD_SCROLL_SPEED;
+
+    // a leftover from the other direction would cancel the first tick of a
+    // reversal, so it is only kept while the direction holds
+    if ((hundredths > 0 && *rem < 0) || (hundredths < 0 && *rem > 0)) {
+        *rem = 0;
+    }
+    hundredths += *rem;
+    *rem = hundredths % 100;
+    return (int8_t)CLAMP(hundredths / 100, -127, 127);
+}
 static int64_t last_scroll_send_ms = 0;
 
 static const struct device *get_a320_device(void) {
@@ -184,8 +202,8 @@ int main(void) {
                     if (scroll_accum_y > 5) scroll_accum_y = 5;
                     if (scroll_accum_y < -5) scroll_accum_y = -5;
 
-                    scroll_x = (int8_t)scroll_accum_x;
-                    scroll_y = (int8_t)scroll_accum_y;
+                    scroll_x = scroll_scale(scroll_accum_x, &scroll_rem_x);
+                    scroll_y = scroll_scale(scroll_accum_y, &scroll_rem_y);
 
                     scroll_accum_x = 0;
                     scroll_accum_y = 0;
@@ -203,6 +221,8 @@ int main(void) {
                 // accumulation so it can't leak into the next scroll gesture
                 scroll_accum_x = 0;
                 scroll_accum_y = 0;
+                scroll_rem_x = 0;
+                scroll_rem_y = 0;
                 // The scaled value is worked out at full width and clamped
                 // before it goes back into the 8-bit report field. It used
                 // to be assigned straight to an int8_t, so a fast movement,
