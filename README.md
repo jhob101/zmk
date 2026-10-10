@@ -6,8 +6,9 @@ config for the [hack2you uConsole trackpad keyboard kit](https://hack2you.tech/p
 If you only want to build, flash or remap the keyboard, start there. This repo
 holds the C code that the keymap alone cannot express.
 
-It is for the V2.1 keyboard. It may work on other versions of the keyboard,
-but it has only been tested on V2.1.
+It is for the V2.1 keyboard and does not work on V1.1. For a V1.1 keyboard, use
+[noodleboy91/uconsole-bb9900-keyboard-v1.1](https://github.com/noodleboy91/uconsole-bb9900-keyboard-v1.1).
+Other versions are untested.
 
 It is **not** a copy of upstream ZMK, and that repo will not build without it.
 
