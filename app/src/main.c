@@ -50,25 +50,33 @@ LOG_MODULE_REGISTER(zmk, CONFIG_ZMK_LOG_LEVEL);
 // scroll report every SCROLL_SEND_INTERVAL_MS, batched into one larger,
 // human-plausible tick instead of a continuous flood of tiny ones.
 #define SCROLL_SEND_INTERVAL_MS 80
+// Motion is accumulated in hundredths of a scroll tick, so that movement too
+// small to make a whole tick still counts towards the next one. Scroll speed
+// then follows finger speed all the way down: an earlier version rounded any
+// motion at all up to one tick per poll, which meant a slow finger scrolled
+// no slower than a moderate one.
+#define SCROLL_TICK_UNITS 100
+#define SCROLL_MAX_TICKS_PER_SEND 5
 static int32_t scroll_accum_x = 0;
 static int32_t scroll_accum_y = 0;
 // CONFIG_TRACKPAD_SCROLL_SPEED scales each batch, in percent. The part of a
-// tick left over is carried into the next batch rather than dropped, so slow
-// scrolling is slowed in proportion instead of being rounded away.
+// tick left over after scaling is carried into the next batch, not dropped.
+// The remainders are in units of 1/(100 * SCROLL_TICK_UNITS) of a tick.
 static int32_t scroll_rem_x = 0;
 static int32_t scroll_rem_y = 0;
 
-static int8_t scroll_scale(int32_t ticks, int32_t *rem) {
-    int32_t hundredths = ticks * CONFIG_TRACKPAD_SCROLL_SPEED;
+static int8_t scroll_scale(int32_t accum, int32_t *rem) {
+    const int32_t whole = 100 * SCROLL_TICK_UNITS;
+    int32_t scaled = accum * CONFIG_TRACKPAD_SCROLL_SPEED;
 
-    // a leftover from the other direction would cancel the first tick of a
+    // a leftover from the other direction would cancel the start of a
     // reversal, so it is only kept while the direction holds
-    if ((hundredths > 0 && *rem < 0) || (hundredths < 0 && *rem > 0)) {
+    if ((scaled > 0 && *rem < 0) || (scaled < 0 && *rem > 0)) {
         *rem = 0;
     }
-    hundredths += *rem;
-    *rem = hundredths % 100;
-    return (int8_t)CLAMP(hundredths / 100, -127, 127);
+    scaled += *rem;
+    *rem = scaled % whole;
+    return (int8_t)CLAMP(scaled / whole, -127, 127);
 }
 static int64_t last_scroll_send_ms = 0;
 
@@ -178,29 +186,18 @@ int main(void) {
                     divisor = 4;
                 }
 
-                int tick_x = use_x ? (-use_x / divisor) : 0;
-                int tick_y = use_y ? (-use_y / divisor) : 0;
-
-                // real, non-noise motion on a locked-in axis should always
-                // contribute at least one unit, even if it rounded to zero
-                if (tick_x == 0 && use_x != 0) {
-                    tick_x = (use_x > 0) ? -1 : 1;
-                }
-                if (tick_y == 0 && use_y != 0) {
-                    tick_y = (use_y > 0) ? -1 : 1;
-                }
-
-                scroll_accum_x += tick_x;
-                scroll_accum_y += tick_y;
+                // in hundredths of a tick: nothing is rounded away here,
+                // and nothing is rounded up to a whole tick either
+                scroll_accum_x += -use_x * SCROLL_TICK_UNITS / divisor;
+                scroll_accum_y += -use_y * SCROLL_TICK_UNITS / divisor;
 
                 int64_t now_ms = k_uptime_get();
                 if (now_ms - last_scroll_send_ms >= SCROLL_SEND_INTERVAL_MS) {
                     // clamp the batched total so a single HID report never
                     // sends more than a real scroll wheel plausibly would
-                    if (scroll_accum_x > 5) scroll_accum_x = 5;
-                    if (scroll_accum_x < -5) scroll_accum_x = -5;
-                    if (scroll_accum_y > 5) scroll_accum_y = 5;
-                    if (scroll_accum_y < -5) scroll_accum_y = -5;
+                    const int32_t limit = SCROLL_MAX_TICKS_PER_SEND * SCROLL_TICK_UNITS;
+                    scroll_accum_x = CLAMP(scroll_accum_x, -limit, limit);
+                    scroll_accum_y = CLAMP(scroll_accum_y, -limit, limit);
 
                     scroll_x = scroll_scale(scroll_accum_x, &scroll_rem_x);
                     scroll_y = scroll_scale(scroll_accum_y, &scroll_rem_y);
