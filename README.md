@@ -84,19 +84,21 @@ after power-up.
 setting, and `&bl BL_RESUME` releases it, so the backlight returns to whatever
 it was. Nothing is saved as "off".
 
-### Trackpad lift detection
+### Trackpad pointer fix
 
-`CONFIG_INPUT_A320_OFN_ENGINE` is written to the A320 sensor's `OFN_Engine`
-register (0x60), which the driver never used to set. `0xA0` switches on the
-sensor's assert/de-assert, so it stops reporting motion as a finger leaves
-and the pointer does not jump on lift. The default, `0x00`, writes nothing.
+Pointer movement is clamped to the report's range. It used to overflow: a
+scaled value past 127 wrapped to the opposite sign, so a fast movement, or the
+noise a sensor produces as a finger lifts, threw the pointer backwards.
 
-Pointer movement is also clamped to the report's range now. It used to
-overflow: a scaled value past 127 wrapped to the opposite sign.
+`CONFIG_INPUT_A320_OFN_ENGINE` sets the A320 sensor's `OFN_Engine` register
+(0x60). It stays at `0x00`. The sensor's assert/de-assert (`0xA0`) was used as
+lift detection for a few releases and then removed, because on some trackpads
+it stopped a bare finger registering at all. The driver writes the register
+even at `0x00`, to clear what an earlier firmware may have left in the sensor.
 
 `CONFIG_INPUT_A320_DIAG` logs the sensor's surface quality, shutter and pixel
-readings next to the motion it reports, for tuning. It needs
-`CONFIG_ZMK_USB_LOGGING` and is not for everyday use.
+readings next to the motion it reports. It needs `CONFIG_ZMK_USB_LOGGING` and
+is not for everyday use.
 
 ### Trackpad light
 

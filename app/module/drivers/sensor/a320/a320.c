@@ -9,7 +9,6 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/crc.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/sys/atomic.h>
 
 #include <stdlib.h>
 
@@ -30,31 +29,24 @@ static int a320_read_reg(const struct device *dev, uint8_t reg_addr) {
 }
 
 // The sensor's own finger-navigation features (register 0x60, OFN_Engine)
-// are all off after power-up, and this driver never used to switch any on.
-// One of them is assert/de-assert: the sensor stops reporting motion once
-// its shutter value shows the finger is leaving the surface, which is what
-// stops the pointer jumping as a thumb is lifted. The datasheet's power-up
-// sequence writes 0xE4 here (engine, speed switching, assert/de-assert,
-// finger presence detect).
+// are all off after power-up, and this driver leaves them off by default.
 //
-// Assert/de-assert works from fixed shutter thresholds, and on some
-// trackpads those thresholds reject a bare finger altogether: the trackpad
-// only responds through something more reflective. So the register is not
-// fixed at build time. a320_set_ofn_engine() says what it should hold, from
-// the keymap by way of trackpad_lift.c, and this driver keeps the sensor in
-// step with that.
+// One of them, assert/de-assert, stops the sensor reporting motion once its
+// shutter value shows the finger leaving the surface, which stops the
+// pointer jumping as a thumb is lifted. It was switched on for a while
+// (0xA0) and then taken out again: it works from fixed shutter thresholds,
+// and on some trackpads those reject a bare finger altogether, so the
+// trackpad only responded through something more reflective. Where it did
+// work it also made tracking a little uneven.
 //
-// The value is written even when it is 0. The sensor is not reset when the
-// keyboard firmware restarts or is reflashed, so it can still hold what an
-// earlier firmware wrote. The register is read back to confirm, retried
-// soon if that fails, and checked again every so often in case the sensor
-// has reset itself.
+// CONFIG_INPUT_A320_OFN_ENGINE is what the register should hold, 0x00 unless
+// someone is experimenting. It is written even when it is 0x00: the sensor
+// is not reset when the keyboard firmware restarts or is reflashed, so it
+// can still hold what an earlier firmware wrote. The write is read back to
+// confirm and retried soon if that fails. A non-zero value is also checked
+// every so often, in case the sensor has reset itself.
 #define A320_ENGINE_RETRY_POLLS 16
 #define A320_ENGINE_RECHECK_POLLS 1024
-
-static atomic_t engine_wanted = ATOMIC_INIT(0);
-
-void a320_set_ofn_engine(uint8_t value) { atomic_set(&engine_wanted, value); }
 
 static int a320_write_reg(const struct device *dev, uint8_t reg_addr, uint8_t value) {
     const struct a320_config *cfg = dev->config;
@@ -74,19 +66,18 @@ static bool a320_apply_engine(const struct device *dev, uint8_t value) {
 
 static void a320_sync_engine(const struct device *dev) {
     static uint32_t polls;
-    static int engine_applied = -1; // not known until the first poll
+    static bool applied;
 
-    const int wanted = atomic_get(&engine_wanted);
-    const uint32_t every =
-        (wanted != engine_applied) ? A320_ENGINE_RETRY_POLLS : A320_ENGINE_RECHECK_POLLS;
-
-    if ((polls++ % every) != 0) {
+    if (applied) {
+        if (CONFIG_INPUT_A320_OFN_ENGINE == 0 || (++polls % A320_ENGINE_RECHECK_POLLS) != 0) {
+            return;
+        }
+    } else if ((polls++ % A320_ENGINE_RETRY_POLLS) != 0) {
         return;
     }
-    if (a320_apply_engine(dev, wanted)) {
-        engine_applied = wanted;
-    } else {
-        engine_applied = -1;
+
+    applied = a320_apply_engine(dev, CONFIG_INPUT_A320_OFN_ENGINE);
+    if (!applied) {
         LOG_ERR("failed to set OFN_Engine");
     }
 }
