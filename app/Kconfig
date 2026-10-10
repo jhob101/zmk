@@ -428,17 +428,27 @@ config INPUT_A320_POLLINGRATE
 	  set the polling rate of a320
 
 config INPUT_A320_OFN_ENGINE
-    hex "Value for the A320's OFN_Engine register (0x60)"
+    hex "A320 OFN_Engine register (0x60) value while lift detection is on"
     range 0x00 0xff
     default 0x00
     help
-      Switches on the sensor's own finger-navigation features. 0x00 writes
-      nothing and leaves the sensor as it powers up, with all of them off.
+      What trackpad lift detection writes to the sensor when it is switched
+      on. When it is off the register is 0x00, as the sensor powers up.
       Bits: 0x80 engine (needed for the rest), 0x40 speed switching, 0x20
       assert/de-assert (stop reporting motion as the finger lifts), 0x10 XY
       quantization, 0x04 finger presence detect on the sensor's GPIO pin,
       0x02 XY scaling. 0xA0 is assert/de-assert alone. The datasheet's
-      power-up sequence uses 0xE4.
+      power-up sequence uses 0xE4. With 0x00 here, switching lift detection
+      on does nothing.
+
+config ZMK_TRACKPAD_LIFT_DETECTION_ON_START
+    bool "Trackpad lift detection on until the user switches it off"
+    default n
+    help
+      Lift detection is switched on and off from the keymap with the
+      trackpad-lift behavior, and the choice is saved. This is the state
+      before any choice has been saved. It is off by default because on
+      some trackpads lift detection stops a bare finger registering at all.
 
 config INPUT_A320_DIAG
     bool "Log the A320's surface quality, shutter and pixel readings"

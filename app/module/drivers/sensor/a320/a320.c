@@ -9,6 +9,7 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/crc.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
 
 #include <stdlib.h>
 
@@ -36,12 +37,24 @@ static int a320_read_reg(const struct device *dev, uint8_t reg_addr) {
 // sequence writes 0xE4 here (engine, speed switching, assert/de-assert,
 // finger presence detect).
 //
-// CONFIG_INPUT_A320_OFN_ENGINE is the value to write. 0 leaves the sensor
-// exactly as before. The register is volatile, so it is written on the first
-// poll, read back to confirm, and checked again every so often in case the
-// sensor was not ready the first time or has reset itself.
-#if CONFIG_INPUT_A320_OFN_ENGINE != 0
+// Assert/de-assert works from fixed shutter thresholds, and on some
+// trackpads those thresholds reject a bare finger altogether: the trackpad
+// only responds through something more reflective. So the register is not
+// fixed at build time. a320_set_ofn_engine() says what it should hold, from
+// the keymap by way of trackpad_lift.c, and this driver keeps the sensor in
+// step with that.
+//
+// The value is written even when it is 0. The sensor is not reset when the
+// keyboard firmware restarts or is reflashed, so it can still hold what an
+// earlier firmware wrote. The register is read back to confirm, retried
+// soon if that fails, and checked again every so often in case the sensor
+// has reset itself.
+#define A320_ENGINE_RETRY_POLLS 16
 #define A320_ENGINE_RECHECK_POLLS 1024
+
+static atomic_t engine_wanted = ATOMIC_INIT(0);
+
+void a320_set_ofn_engine(uint8_t value) { atomic_set(&engine_wanted, value); }
 
 static int a320_write_reg(const struct device *dev, uint8_t reg_addr, uint8_t value) {
     const struct a320_config *cfg = dev->config;
@@ -49,16 +62,34 @@ static int a320_write_reg(const struct device *dev, uint8_t reg_addr, uint8_t va
     return i2c_reg_write_byte_dt(&cfg->bus, reg_addr, value);
 }
 
-static bool a320_apply_engine(const struct device *dev) {
-    if (a320_read_reg(dev, OFN_Engine) == CONFIG_INPUT_A320_OFN_ENGINE) {
+static bool a320_apply_engine(const struct device *dev, uint8_t value) {
+    if (a320_read_reg(dev, OFN_Engine) == value) {
         return true;
     }
-    if (a320_write_reg(dev, OFN_Engine, CONFIG_INPUT_A320_OFN_ENGINE) != 0) {
+    if (a320_write_reg(dev, OFN_Engine, value) != 0) {
         return false;
     }
-    return a320_read_reg(dev, OFN_Engine) == CONFIG_INPUT_A320_OFN_ENGINE;
+    return a320_read_reg(dev, OFN_Engine) == value;
 }
-#endif
+
+static void a320_sync_engine(const struct device *dev) {
+    static uint32_t polls;
+    static int engine_applied = -1; // not known until the first poll
+
+    const int wanted = atomic_get(&engine_wanted);
+    const uint32_t every =
+        (wanted != engine_applied) ? A320_ENGINE_RETRY_POLLS : A320_ENGINE_RECHECK_POLLS;
+
+    if ((polls++ % every) != 0) {
+        return;
+    }
+    if (a320_apply_engine(dev, wanted)) {
+        engine_applied = wanted;
+    } else {
+        engine_applied = -1;
+        LOG_ERR("failed to set OFN_Engine");
+    }
+}
 
 #if IS_ENABLED(CONFIG_INPUT_A320_DIAG)
 // Diagnostics for tuning lift detection: what the sensor sees (surface
@@ -117,15 +148,7 @@ static int a320_sample_fetch(const struct device *dev, enum sensor_channel chan)
 
 static int a320_channel_get(const struct device *dev, enum sensor_channel chan,
                             struct sensor_value *val) {
-#if CONFIG_INPUT_A320_OFN_ENGINE != 0
-    static uint32_t polls;
-
-    if ((polls++ % A320_ENGINE_RECHECK_POLLS) == 0) {
-        if (!a320_apply_engine(dev)) {
-            LOG_ERR("failed to set OFN_Engine");
-        }
-    }
-#endif
+    a320_sync_engine(dev);
 
     const uint8_t ifmotion = a320_read_reg(dev, Motion);
     const uint8_t ovflow = a320_read_reg(dev, Motion);

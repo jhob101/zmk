@@ -1,0 +1,10 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Switch trackpad lift detection on or off. The parameter is 1 for on, 0 for
+  off. The choice is saved, and kept across power cycles and firmware updates.
+
+compatible: "zmk,behavior-trackpad-lift"
+
+include: one_param.yaml
