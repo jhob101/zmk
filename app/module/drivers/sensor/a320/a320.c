@@ -10,6 +10,8 @@
 #include <zephyr/sys/crc.h>
 #include <zephyr/logging/log.h>
 
+#include <stdlib.h>
+
 #include "a320.h"
 
 LOG_MODULE_REGISTER(A320, CONFIG_SENSOR_LOG_LEVEL);
@@ -26,10 +28,105 @@ static int a320_read_reg(const struct device *dev, uint8_t reg_addr) {
     return -1;
 }
 
+// The sensor's own finger-navigation features (register 0x60, OFN_Engine)
+// are all off after power-up, and this driver never used to switch any on.
+// One of them is assert/de-assert: the sensor stops reporting motion once
+// its shutter value shows the finger is leaving the surface, which is what
+// stops the pointer jumping as a thumb is lifted. The datasheet's power-up
+// sequence writes 0xE4 here (engine, speed switching, assert/de-assert,
+// finger presence detect).
+//
+// CONFIG_INPUT_A320_OFN_ENGINE is the value to write. 0 leaves the sensor
+// exactly as before. The register is volatile, so it is written on the first
+// poll, read back to confirm, and checked again every so often in case the
+// sensor was not ready the first time or has reset itself.
+#if CONFIG_INPUT_A320_OFN_ENGINE != 0
+#define A320_ENGINE_RECHECK_POLLS 1024
+
+static int a320_write_reg(const struct device *dev, uint8_t reg_addr, uint8_t value) {
+    const struct a320_config *cfg = dev->config;
+
+    return i2c_reg_write_byte_dt(&cfg->bus, reg_addr, value);
+}
+
+static bool a320_apply_engine(const struct device *dev) {
+    if (a320_read_reg(dev, OFN_Engine) == CONFIG_INPUT_A320_OFN_ENGINE) {
+        return true;
+    }
+    if (a320_write_reg(dev, OFN_Engine, CONFIG_INPUT_A320_OFN_ENGINE) != 0) {
+        return false;
+    }
+    return a320_read_reg(dev, OFN_Engine) == CONFIG_INPUT_A320_OFN_ENGINE;
+}
+#endif
+
+#if IS_ENABLED(CONFIG_INPUT_A320_DIAG)
+// Diagnostics for tuning lift detection: what the sensor sees (surface
+// quality, shutter, pixel levels) alongside the motion it reports. Lines are
+// logged when there is motion, when the readings shift, and twice a second
+// otherwise. Read them over USB logging (CONFIG_ZMK_USB_LOGGING).
+static void a320_diag_dump_registers(const struct device *dev) {
+    static const uint8_t regs[] = {
+        Product_ID,      Revision_ID,     Inverse_Product_ID, Inverse_Revision_ID,
+        Configuration_Bits, LED_Control,  IO_Mode,            Motion_Control,
+        Shutter_Max_Hi,  Shutter_Max_Lo,  OFN_Engine,         0x61,
+        OFN_Resolution,  OFN_Speed_Control, OFN_AD_CTRL,      OFN_AD_ATH_HIGH,
+        OFN_AD_DTH_HIGH, OFN_AD_ATH_LOW,  OFN_AD_DTH_LOW,     OFN_Quantize_CTRL,
+        OFN_XYQ_THRESH,  OFN_FPD_CTRL,    OFN_Orientation_CTRL,
+    };
+
+    for (int i = 0; i < ARRAY_SIZE(regs); i++) {
+        LOG_INF("tpreg 0x%02x = 0x%02x", regs[i], a320_read_reg(dev, regs[i]) & 0xff);
+    }
+}
+
+static void a320_diag_sample(const struct device *dev, uint8_t motion, int8_t dx, int8_t dy) {
+    static uint32_t polls;
+    static uint32_t last_log_ms;
+    static int last_squal = -1;
+    static int last_shutter = -1;
+
+    // The register dump is repeated now and then so that it is not missed if
+    // the log is opened late.
+    if ((polls++ % 3000) == 0) {
+        a320_diag_dump_registers(dev);
+    }
+
+    const int squal = a320_read_reg(dev, SQUAL) & 0xff;
+    const int shutter =
+        ((a320_read_reg(dev, Shutter_Upper) & 0xff) << 8) | (a320_read_reg(dev, Shutter_Lower) & 0xff);
+    const int pix_max = a320_read_reg(dev, Maximum_Pixel) & 0xff;
+    const int pix_avg = a320_read_reg(dev, Pixel_Sun) & 0xff;
+    const int pix_min = a320_read_reg(dev, Minimum_Pixel) & 0xff;
+
+    const uint32_t now = k_uptime_get_32();
+    const bool moved = (motion & BIT_MOTION_MOT) != 0;
+    const bool shifted = abs(squal - last_squal) > 3 || abs(shutter - last_shutter) > 16;
+
+    if (moved || shifted || (now - last_log_ms) >= 500) {
+        LOG_INF("tp t=%u mot=%02x dx=%d dy=%d sq=%d sh=%d px=%d/%d/%d", now, motion, dx, dy,
+                squal, shutter, pix_max, pix_avg, pix_min);
+        last_log_ms = now;
+        last_squal = squal;
+        last_shutter = shutter;
+    }
+}
+#endif
+
 static int a320_sample_fetch(const struct device *dev, enum sensor_channel chan) { return 0; }
 
 static int a320_channel_get(const struct device *dev, enum sensor_channel chan,
                             struct sensor_value *val) {
+#if CONFIG_INPUT_A320_OFN_ENGINE != 0
+    static uint32_t polls;
+
+    if ((polls++ % A320_ENGINE_RECHECK_POLLS) == 0) {
+        if (!a320_apply_engine(dev)) {
+            LOG_ERR("failed to set OFN_Engine");
+        }
+    }
+#endif
+
     const uint8_t ifmotion = a320_read_reg(dev, Motion);
     const uint8_t ovflow = a320_read_reg(dev, Motion);
     if ((ifmotion & BIT_MOTION_MOT) && !(ovflow & BIT_MOTION_OVF)) {
@@ -40,6 +137,9 @@ static int a320_channel_get(const struct device *dev, enum sensor_channel chan,
     } else{
         val->val1 = 0;
         val->val2 = 0;}
+#if IS_ENABLED(CONFIG_INPUT_A320_DIAG)
+    a320_diag_sample(dev, ifmotion, (int8_t)val->val1, (int8_t)val->val2);
+#endif
     return -1;
 }
 

@@ -203,10 +203,16 @@ int main(void) {
                 // accumulation so it can't leak into the next scroll gesture
                 scroll_accum_x = 0;
                 scroll_accum_y = 0;
-                x = ((x < 127) ? x : (x - 256)) * 1.5 * CONFIG_TRACKPAD_SPEEDMULTIPLIER_HORIZONTAL /
-                    100;
-                y = ((y < 127) ? y : (y - 256)) * 1.5 * CONFIG_TRACKPAD_SPEEDMULTIPLIER_VERTICAL /
-                    100;
+                // The scaled value is worked out at full width and clamped
+                // before it goes back into the 8-bit report field. It used
+                // to be assigned straight to an int8_t, so a fast movement,
+                // or a burst of sensor noise as a finger lifts, scaled past
+                // 127 and wrapped round to the opposite sign: the pointer
+                // jumped backwards.
+                int scaled_x = x * 1.5 * CONFIG_TRACKPAD_SPEEDMULTIPLIER_HORIZONTAL / 100;
+                int scaled_y = y * 1.5 * CONFIG_TRACKPAD_SPEEDMULTIPLIER_VERTICAL / 100;
+                x = CLAMP(scaled_x, -127, 127);
+                y = CLAMP(scaled_y, -127, 127);
             }
             zmk_hid_mouse_movement_set(0, 0);
             zmk_hid_mouse_movement_update(x, y);
