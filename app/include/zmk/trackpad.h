@@ -13,7 +13,10 @@
  * polling loop in main.c (which turns motion into cursor and scroll reports).
  */
 
-/** True while a key bound to the scroll-hold behavior is held down. */
+/**
+ * True while trackpad motion should scroll: a key bound to the scroll-hold
+ * behavior is held down, or a scroll switch (its `toggle` option) is on.
+ */
 bool zmk_trackpad_scroll_held(void);
 
 /**

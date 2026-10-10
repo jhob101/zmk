@@ -3,7 +3,7 @@
 
 description: |
   Hold to scroll with the trackpad. Released without any trackpad motion, it
-  taps the bound behavior instead.
+  taps the bound behavior instead. With `toggle` it is a scroll switch.
 
 compatible: "zmk,behavior-scroll-hold"
 
@@ -23,3 +23,9 @@ properties:
     description: |
       Press the bound behavior when the key goes down and release it when the
       key comes up, as well as scrolling, instead of tapping it on release.
+  toggle:
+    type: boolean
+    description: |
+      Make the key a scroll switch: each press turns trackpad scrolling on or
+      off, and it stays that way until the next press. The bound behavior is
+      not tapped, so bind &none unless pass-through is also set.

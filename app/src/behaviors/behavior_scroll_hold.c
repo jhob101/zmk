@@ -21,14 +21,22 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 // the cursor. If the key is released without the trackpad having moved, the
 // bound behavior is tapped instead, so the key keeps a function of its own.
 //
+// With the `toggle` property the key is a scroll switch instead: each press
+// turns scrolling on or off, and it stays that way until the next press.
+//
 // The flags are written from key events here and read from the trackpad
 // polling loop in main.c, which runs on a different thread. They live outside
 // the devicetree guard so main.c links even with no instance in the keymap.
 
 static atomic_t scroll_held = ATOMIC_INIT(0);
 static atomic_t scroll_used = ATOMIC_INIT(0);
+// Kept apart from scroll_held so that holding and releasing a hold-to-scroll
+// key while the switch is on leaves the switch on.
+static atomic_t scroll_toggled = ATOMIC_INIT(0);
 
-bool zmk_trackpad_scroll_held(void) { return atomic_get(&scroll_held) != 0; }
+bool zmk_trackpad_scroll_held(void) {
+    return atomic_get(&scroll_held) != 0 || atomic_get(&scroll_toggled) != 0;
+}
 
 void zmk_trackpad_scroll_mark_used(void) { atomic_set(&scroll_used, 1); }
 
@@ -43,6 +51,10 @@ struct behavior_scroll_hold_config {
     // being reported during a scroll. Without it, the bound behavior is only
     // tapped on release, and only if the trackpad did not move.
     bool pass_through;
+    // A scroll switch: each press turns scrolling on or off. The bound
+    // behavior is not tapped. With pass-through as well it is still pressed
+    // and released along with the key.
+    bool toggle;
 };
 
 static int on_scroll_hold_pressed(struct zmk_behavior_binding *binding,
@@ -50,8 +62,12 @@ static int on_scroll_hold_pressed(struct zmk_behavior_binding *binding,
     const struct device *dev = zmk_behavior_get_binding(binding->behavior_dev);
     const struct behavior_scroll_hold_config *cfg = dev->config;
 
-    atomic_set(&scroll_used, 0);
-    atomic_set(&scroll_held, 1);
+    if (cfg->toggle) {
+        atomic_set(&scroll_toggled, atomic_get(&scroll_toggled) ? 0 : 1);
+    } else {
+        atomic_set(&scroll_used, 0);
+        atomic_set(&scroll_held, 1);
+    }
 
     if (cfg->pass_through) {
         behavior_keymap_binding_pressed((struct zmk_behavior_binding *)&cfg->tap_binding, event);
@@ -64,11 +80,13 @@ static int on_scroll_hold_released(struct zmk_behavior_binding *binding,
     const struct device *dev = zmk_behavior_get_binding(binding->behavior_dev);
     const struct behavior_scroll_hold_config *cfg = dev->config;
 
-    atomic_set(&scroll_held, 0);
+    if (!cfg->toggle) {
+        atomic_set(&scroll_held, 0);
+    }
 
     if (cfg->pass_through) {
         behavior_keymap_binding_released((struct zmk_behavior_binding *)&cfg->tap_binding, event);
-    } else if (atomic_get(&scroll_used) == 0) {
+    } else if (!cfg->toggle && atomic_get(&scroll_used) == 0) {
         zmk_behavior_queue_add(event.position, cfg->tap_binding, true, cfg->tap_ms);
         zmk_behavior_queue_add(event.position, cfg->tap_binding, false, 0);
     }
@@ -97,6 +115,7 @@ static int behavior_scroll_hold_init(const struct device *dev) { return 0; }
         .tap_binding = _TRANSFORM_ENTRY(0, n),                                                     \
         .tap_ms = DT_INST_PROP(n, tap_ms),                                                         \
         .pass_through = DT_INST_PROP(n, pass_through),                                             \
+        .toggle = DT_INST_PROP(n, toggle),                                                         \
     };                                                                                             \
     BEHAVIOR_DT_INST_DEFINE(n, behavior_scroll_hold_init, NULL, NULL,                              \
                             &behavior_scroll_hold_config_##n, POST_KERNEL,                         \

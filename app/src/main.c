@@ -28,7 +28,9 @@ LOG_MODULE_REGISTER(zmk, CONFIG_ZMK_LOG_LEVEL);
 // Trackpad scroll mode is hold-to-scroll: it is active while a key bound to
 // the scroll-hold behavior (Select, on the uConsole keymap) is held down, as
 // in the uConsole QMK firmware. This replaces fix9900's click-to-toggle on
-// the trackpad's own press, which is a plain mouse click again.
+// the trackpad's own press, which is a plain mouse click again. The same
+// behavior has a `toggle` option for keymaps that want a scroll switch on a
+// key instead; both come through zmk_trackpad_scroll_held().
 //
 // The held state is set from key events in behavior_scroll_hold.c and only
 // read here, so this loop never polls key or modifier state itself. Polling

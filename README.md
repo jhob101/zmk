@@ -47,6 +47,10 @@ bound to it is held, trackpad motion scrolls instead of moving the pointer.
   bound behavior, so the key keeps a function of its own.
 - With `pass-through`, the bound behavior is pressed and released along with
   the key instead, so it responds on press and can be held.
+- With `toggle`, the key is a scroll switch: each press turns scrolling on or
+  off, and it stays that way until the next press. The bound behavior is not
+  tapped, so bind `&none`. A switch and a hold key can be used together, and
+  releasing the hold key leaves the switch as it was.
 
 This replaces thoughtfix's click-the-trackpad-to-toggle scroll mode. The axis
 locking and batched scroll reports in `src/main.c` are unchanged.
