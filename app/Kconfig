@@ -400,6 +400,22 @@ config ZMK_INDICATOR_CAPSLOCK_BRT
 #ZMK_INDICATOR_CAPSLOCK
 endif
 
+config ZMK_TRACKPAD_SCROLL_LIGHT
+    bool "Switch the trackpad light with scroll mode"
+    depends on LED && !ZMK_INDICATOR_CAPSLOCK
+    help
+      Drive the trackpad light (the zmk_indicator_capslock chosen LED) from
+      the trackpad's scroll mode: 100% while a scroll-hold key is held or a
+      scroll switch is on, 0% otherwise. This is what the vendor firmware
+      did on this pin while CapsLock, its scroll mode, was on.
+
+config ZMK_TRACKPAD_SCROLL_LIGHT_INVERT
+    bool "Drive the trackpad light the other way round"
+    depends on ZMK_TRACKPAD_SCROLL_LIGHT
+    help
+      0% while scrolling and 100% otherwise. Use this if the light does the
+      opposite of what you want.
+
 menuconfig INPUT_A320
     bool "A320 touchpad Driver"
     depends on I2C

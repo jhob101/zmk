@@ -25,6 +25,12 @@ bool zmk_trackpad_scroll_held(void);
  */
 void zmk_trackpad_scroll_mark_used(void);
 
+/**
+ * Sets the trackpad light for the given scroll state. Only built with
+ * CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT.
+ */
+void zmk_trackpad_scroll_light_update(bool scrolling);
+
 /** False while the trackpad is switched off by the trackpad-enable behavior. */
 bool zmk_trackpad_enabled(void);
 void zmk_trackpad_set_enabled(bool enabled);

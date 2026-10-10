@@ -42,6 +42,13 @@ void zmk_trackpad_scroll_mark_used(void) { atomic_set(&scroll_used, 1); }
 
 #if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
 
+// Called after every change to the flags above, from key events only.
+static void scroll_state_changed(void) {
+#if IS_ENABLED(CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT)
+    zmk_trackpad_scroll_light_update(zmk_trackpad_scroll_held());
+#endif
+}
+
 struct behavior_scroll_hold_config {
     struct zmk_behavior_binding tap_binding;
     uint32_t tap_ms;
@@ -68,6 +75,7 @@ static int on_scroll_hold_pressed(struct zmk_behavior_binding *binding,
         atomic_set(&scroll_used, 0);
         atomic_set(&scroll_held, 1);
     }
+    scroll_state_changed();
 
     if (cfg->pass_through) {
         behavior_keymap_binding_pressed((struct zmk_behavior_binding *)&cfg->tap_binding, event);
@@ -82,6 +90,7 @@ static int on_scroll_hold_released(struct zmk_behavior_binding *binding,
 
     if (!cfg->toggle) {
         atomic_set(&scroll_held, 0);
+        scroll_state_changed();
     }
 
     if (cfg->pass_through) {
