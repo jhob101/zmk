@@ -188,7 +188,14 @@ int main(void) {
 
                 // in hundredths of a tick: nothing is rounded away here,
                 // and nothing is rounded up to a whole tick either
-                scroll_accum_x += -use_x * SCROLL_TICK_UNITS / divisor;
+                //
+                // The two axes take opposite signs because the HID wheel and
+                // pan usages point opposite ways: a positive wheel value is
+                // up, a positive pan value is right. Moving a finger up
+                // (negative y) scrolls up and moving it left (negative x)
+                // scrolls left. Horizontal used to be negated like vertical,
+                // which made it scroll the opposite way to the finger.
+                scroll_accum_x += use_x * SCROLL_TICK_UNITS / divisor;
                 scroll_accum_y += -use_y * SCROLL_TICK_UNITS / divisor;
 
                 int64_t now_ms = k_uptime_get();
