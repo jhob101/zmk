@@ -107,6 +107,21 @@ mode: one level while a scroll-hold key is held or a scroll switch is on, the
 other otherwise. On the V2.1 keyboard the light goes out while scrolling.
 `CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT` swaps the two levels.
 
+`zmk,behavior-trackpad-light` controls it from the keymap, with the parameters
+in `dt-bindings/zmk/trackpad.h`: `TPL_ON`, `TPL_OFF` and `TPL_TOG` (saved), and
+`TPL_SUSPEND` / `TPL_RESUME` to hold it off without changing that choice, as
+the keyboard lock does.
+
+### One-shot modifiers
+
+Two opt-in properties for `zmk,behavior-sticky-key`:
+
+- `cancel-on-retap`: tapping an armed, unused sticky key again disarms it,
+  instead of arming it afresh.
+- `release-on-mouse`: a mouse click, or the end of a trackpad scroll, uses up
+  an armed sticky key as a key press does. Without it only key presses do, so
+  an armed Shift stays down through any mouse use.
+
 ### Volume key fix
 
 `zmk,behavior-vol-shift` (from thoughtfix: volume down, or volume up with
