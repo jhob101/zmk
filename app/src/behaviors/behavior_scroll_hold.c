@@ -13,6 +13,7 @@
 #include <zmk/behavior.h>
 #include <zmk/behavior_queue.h>
 #include <zmk/trackpad.h>
+#include <zmk/sticky_key.h>
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
@@ -70,7 +71,13 @@ static int on_scroll_hold_pressed(struct zmk_behavior_binding *binding,
     const struct behavior_scroll_hold_config *cfg = dev->config;
 
     if (cfg->toggle) {
-        atomic_set(&scroll_toggled, atomic_get(&scroll_toggled) ? 0 : 1);
+        const bool was_on = atomic_get(&scroll_toggled) != 0;
+        atomic_set(&scroll_toggled, was_on ? 0 : 1);
+        if (was_on) {
+            // the scroll switch going off ends a scroll: a one-shot modifier
+            // applied to it, so it is used up now
+            zmk_sticky_key_release_armed_soon();
+        }
     } else {
         atomic_set(&scroll_used, 0);
         atomic_set(&scroll_held, 1);
@@ -91,6 +98,11 @@ static int on_scroll_hold_released(struct zmk_behavior_binding *binding,
     if (!cfg->toggle) {
         atomic_set(&scroll_held, 0);
         scroll_state_changed();
+        if (atomic_get(&scroll_used)) {
+            // a one-shot modifier applied to this scroll, so it is used up
+            // now (an unused hold sends its own key, which does the same)
+            zmk_sticky_key_release_armed_soon();
+        }
     }
 
     if (cfg->pass_through) {

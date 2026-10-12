@@ -19,6 +19,7 @@
 #include <zmk/events/modifiers_state_changed.h>
 #include <zmk/hid.h>
 #include <zmk/keymap.h>
+#include <zmk/sticky_key.h>
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
@@ -34,6 +35,12 @@ struct behavior_sticky_key_config {
     uint32_t release_after_ms;
     bool quick_release;
     bool ignore_modifiers;
+    // uConsole fork: tapping an armed sticky key again disarms it, instead of
+    // arming it afresh.
+    bool cancel_on_retap;
+    // uConsole fork: a mouse click or a trackpad scroll uses up an armed
+    // sticky key, as a key press does (see zmk_sticky_key_release_armed_soon).
+    bool release_on_mouse;
     struct zmk_behavior_binding behavior;
 };
 
@@ -53,6 +60,29 @@ struct active_sticky_key {
 };
 
 struct active_sticky_key active_sticky_keys[ZMK_BHV_STICKY_KEY_MAX_HELD] = {};
+
+// Positions whose press just disarmed their sticky key (cancel-on-retap), so
+// the matching release is expected and ignored.
+static uint32_t retap_cancelled_positions[ZMK_BHV_STICKY_KEY_MAX_HELD];
+
+static bool take_retap_cancelled(uint32_t position) {
+    for (int i = 0; i < ZMK_BHV_STICKY_KEY_MAX_HELD; i++) {
+        if (retap_cancelled_positions[i] == position) {
+            retap_cancelled_positions[i] = ZMK_BHV_STICKY_KEY_POSITION_FREE;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void note_retap_cancelled(uint32_t position) {
+    for (int i = 0; i < ZMK_BHV_STICKY_KEY_MAX_HELD; i++) {
+        if (retap_cancelled_positions[i] == ZMK_BHV_STICKY_KEY_POSITION_FREE) {
+            retap_cancelled_positions[i] = position;
+            return;
+        }
+    }
+}
 
 static struct active_sticky_key *store_sticky_key(uint32_t position, uint32_t param1,
                                                   uint32_t param2,
@@ -136,8 +166,17 @@ static int on_sticky_key_binding_pressed(struct zmk_behavior_binding *binding,
     struct active_sticky_key *sticky_key;
     sticky_key = find_sticky_key(event.position);
     if (sticky_key != NULL) {
+        // Armed (tapped and waiting) and not yet used: with cancel-on-retap,
+        // this tap disarms it and arms nothing new.
+        const bool armed = sticky_key->timer_started && sticky_key->modified_key_usage_page == 0 &&
+                           sticky_key->modified_key_keycode == 0;
         stop_timer(sticky_key);
         release_sticky_key_behavior(sticky_key, event.timestamp);
+        if (armed && cfg->cancel_on_retap) {
+            LOG_DBG("%d sticky_key cancelled by a second tap", event.position);
+            note_retap_cancelled(event.position);
+            return ZMK_BEHAVIOR_OPAQUE;
+        }
     }
     sticky_key = store_sticky_key(event.position, binding->param1, binding->param2, cfg);
     if (sticky_key == NULL) {
@@ -153,6 +192,9 @@ static int on_sticky_key_binding_pressed(struct zmk_behavior_binding *binding,
 
 static int on_sticky_key_binding_released(struct zmk_behavior_binding *binding,
                                           struct zmk_behavior_binding_event event) {
+    if (take_retap_cancelled(event.position)) {
+        return ZMK_BEHAVIOR_OPAQUE;
+    }
     struct active_sticky_key *sticky_key = find_sticky_key(event.position);
     if (sticky_key == NULL) {
         LOG_ERR("ACTIVE STICKY KEY CLEARED TOO EARLY");
@@ -273,6 +315,39 @@ void behavior_sticky_key_timer_handler(struct k_work *item) {
     }
 }
 
+// uConsole fork: mouse clicks and trackpad scrolls do not raise keycode
+// events, so on their own they never use up an armed sticky key, and an armed
+// Shift or Ctrl stays reported to the host through any amount of mouse use
+// (Shift + scroll is horizontal scrolling in most Linux apps, so scrolling
+// seemed to stop). The mouse-button and scroll behaviors call this when a
+// click or scroll ends, and armed sticky keys with release-on-mouse are
+// released, as if a key had been pressed. A sticky key that is physically
+// held down is left alone.
+//
+// It is done shortly after rather than at once: mouse reports go out through
+// the input subsystem's own thread, and the modifier must still be down when
+// the click or scroll that it applies to reaches the host.
+#define STICKY_KEY_MOUSE_RELEASE_DELAY_MS 30
+
+static struct k_work_delayable mouse_release_work;
+
+static void mouse_release_work_handler(struct k_work *work) {
+    for (int i = 0; i < ZMK_BHV_STICKY_KEY_MAX_HELD; i++) {
+        struct active_sticky_key *sticky_key = &active_sticky_keys[i];
+        if (sticky_key->position == ZMK_BHV_STICKY_KEY_POSITION_FREE ||
+            sticky_key->timer_cancelled || !sticky_key->timer_started ||
+            !sticky_key->config->release_on_mouse) {
+            continue;
+        }
+        stop_timer(sticky_key);
+        release_sticky_key_behavior(sticky_key, k_uptime_get());
+    }
+}
+
+void zmk_sticky_key_release_armed_soon(void) {
+    k_work_reschedule(&mouse_release_work, K_MSEC(STICKY_KEY_MOUSE_RELEASE_DELAY_MS));
+}
+
 static int behavior_sticky_key_init(const struct device *dev) {
     static bool init_first_run = true;
     if (init_first_run) {
@@ -280,7 +355,9 @@ static int behavior_sticky_key_init(const struct device *dev) {
             k_work_init_delayable(&active_sticky_keys[i].release_timer,
                                   behavior_sticky_key_timer_handler);
             active_sticky_keys[i].position = ZMK_BHV_STICKY_KEY_POSITION_FREE;
+            retap_cancelled_positions[i] = ZMK_BHV_STICKY_KEY_POSITION_FREE;
         }
+        k_work_init_delayable(&mouse_release_work, mouse_release_work_handler);
     }
     init_first_run = false;
     return 0;
@@ -295,11 +372,17 @@ static struct behavior_sticky_key_data behavior_sticky_key_data;
         .release_after_ms = DT_INST_PROP(n, release_after_ms),                                     \
         .ignore_modifiers = DT_INST_PROP(n, ignore_modifiers),                                     \
         .quick_release = DT_INST_PROP(n, quick_release),                                           \
+        .cancel_on_retap = DT_INST_PROP(n, cancel_on_retap),                                       \
+        .release_on_mouse = DT_INST_PROP(n, release_on_mouse),                                     \
     };                                                                                             \
     BEHAVIOR_DT_INST_DEFINE(n, behavior_sticky_key_init, NULL, &behavior_sticky_key_data,          \
                             &behavior_sticky_key_config_##n, POST_KERNEL,                          \
                             CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, &behavior_sticky_key_driver_api);
 
 DT_INST_FOREACH_STATUS_OKAY(KP_INST)
+
+#else
+
+void zmk_sticky_key_release_armed_soon(void) {}
 
 #endif

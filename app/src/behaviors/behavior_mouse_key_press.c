@@ -11,6 +11,7 @@
 #include <zephyr/logging/log.h>
 
 #include <zmk/behavior.h>
+#include <zmk/sticky_key.h>
 #include <zmk/hid.h>
 #include <zephyr/input/input.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
@@ -44,6 +45,9 @@ static int on_keymap_binding_released(struct zmk_behavior_binding *binding,
     LOG_DBG("position %d keycode 0x%02X", event.position, binding->param1);
 
     process_key_state(zmk_behavior_get_binding(binding->behavior_dev), binding->param1, false);
+
+    // a one-shot modifier applied to this click, so it is used up now
+    zmk_sticky_key_release_armed_soon();
 
     return 0;
 }

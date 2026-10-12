@@ -18,3 +18,13 @@ properties:
     type: boolean
   ignore-modifiers:
     type: boolean
+  cancel-on-retap:
+    type: boolean
+    description: |
+      Tapping the key again while it is armed and unused disarms it, instead
+      of arming it afresh.
+  release-on-mouse:
+    type: boolean
+    description: |
+      A mouse click or a trackpad scroll uses up the armed key, as a key press
+      does. Without this, only key presses use it up.
