@@ -31,6 +31,13 @@ void zmk_trackpad_scroll_mark_used(void);
  */
 void zmk_trackpad_scroll_light_update(bool scrolling);
 
+/** The user's on/off choice for the trackpad light, saved. */
+bool zmk_trackpad_light_enabled(void);
+void zmk_trackpad_light_set_enabled(bool on);
+
+/** Holds the light off while true, without changing the saved choice. */
+void zmk_trackpad_light_set_suspended(bool suspended);
+
 /** False while the trackpad is switched off by the trackpad-enable behavior. */
 bool zmk_trackpad_enabled(void);
 void zmk_trackpad_set_enabled(bool enabled);

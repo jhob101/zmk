@@ -1,0 +1,12 @@
+# Copyright (c) 2026 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+description: |
+  Control the trackpad light. The parameter is TPL_OFF, TPL_ON or TPL_TOG
+  (saved across power cycles), or TPL_SUSPEND and TPL_RESUME, which hold it
+  off and let it go again without changing the saved choice (for a lock).
+  See dt-bindings/zmk/trackpad.h.
+
+compatible: "zmk,behavior-trackpad-light"
+
+include: one_param.yaml
