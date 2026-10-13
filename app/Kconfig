@@ -416,6 +416,16 @@ config ZMK_TRACKPAD_SCROLL_LIGHT_INVERT
       0% while scrolling and 100% otherwise. Use this if the light does the
       opposite of what you want.
 
+config ZMK_TRACKPAD_LIGHT_HOST_SLEEP
+    bool "Let the host hold the trackpad light off with the Kana LED"
+    default y
+    depends on ZMK_TRACKPAD_SCROLL_LIGHT && ZMK_HID_INDICATORS
+    help
+      Hold the trackpad light off while the host has the Kana LED switched
+      on, so a sleep service on the host can put the light out when the
+      screen goes off. A USB reset or disconnect lets it back on, in case
+      the host never switches Kana off again.
+
 menuconfig INPUT_A320
     bool "A320 touchpad Driver"
     depends on I2C
