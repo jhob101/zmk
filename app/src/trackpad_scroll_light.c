@@ -14,6 +14,14 @@
 
 #include <zmk/trackpad.h>
 
+#if IS_ENABLED(CONFIG_ZMK_TRACKPAD_LIGHT_HOST_SLEEP)
+#include <dt-bindings/zmk/hid_usage.h>
+#include <zmk/event_manager.h>
+#include <zmk/usb.h>
+#include <zmk/events/hid_indicators_changed.h>
+#include <zmk/events/usb_conn_state_changed.h>
+#endif
+
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 // The trackpad light follows scroll mode.
@@ -28,7 +36,9 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 // This drives the same pin the same way, but from the real scroll state: 100%
 // while the trackpad is scrolling, 0% otherwise. On top of that the light
 // can be switched off from the keymap (zmk,behavior-trackpad-light, saved),
-// and the keyboard lock holds it off while locked. Whether 100% means lit or
+// and the keyboard lock holds it off while locked. The host can also hold it
+// off by switching on the Kana LED (CONFIG_ZMK_TRACKPAD_LIGHT_HOST_SLEEP), which
+// is how a sleep service puts it out with the screen. Whether 100% means lit or
 // dark depends on how the board wires the light, so
 // CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT swaps the two levels.
 //
@@ -41,13 +51,16 @@ BUILD_ASSERT(DT_HAS_CHOSEN(zmk_indicator_capslock),
 
 static const struct device *const light_dev = DEVICE_DT_GET(DT_CHOSEN(zmk_indicator_capslock));
 
-// The light is lit only when all three allow it: the user has it switched
-// on (saved), the keyboard is not locked, and the trackpad is not scrolling.
+// The light is lit only when all four allow it: the user has it switched
+// on (saved), the keyboard is not locked, the host is not asleep, and the
+// trackpad is not scrolling. Locked and asleep are kept apart so waking the
+// host while locked leaves the light off.
 #define LEVEL_LIT (IS_ENABLED(CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT) ? 100 : 0)
 #define LEVEL_DARK (IS_ENABLED(CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT) ? 0 : 100)
 
 static bool light_enabled = true;
-static bool light_suspended;
+static bool light_locked;
+static bool light_host_asleep;
 static bool light_scrolling;
 
 static void light_refresh(void) {
@@ -55,7 +68,7 @@ static void light_refresh(void) {
         return;
     }
 
-    const bool lit = light_enabled && !light_suspended && !light_scrolling;
+    const bool lit = light_enabled && !light_locked && !light_host_asleep && !light_scrolling;
     int rc = led_set_brightness(light_dev, 0, lit ? LEVEL_LIT : LEVEL_DARK);
     if (rc != 0) {
         LOG_ERR("Failed to set the trackpad light: %d", rc);
@@ -108,9 +121,44 @@ void zmk_trackpad_light_set_enabled(bool on) {
 }
 
 void zmk_trackpad_light_set_suspended(bool suspended) {
-    light_suspended = suspended;
+    light_locked = suspended;
     light_refresh();
 }
+
+#if IS_ENABLED(CONFIG_ZMK_TRACKPAD_LIGHT_HOST_SLEEP)
+// HID LED usages start at 1, bit 0 of the report is Num Lock.
+#define KANA_BIT BIT(HID_USAGE_LED_KANA - 1)
+
+static void light_set_host_asleep(bool asleep) {
+    if (light_host_asleep == asleep) {
+        return;
+    }
+    light_host_asleep = asleep;
+    light_refresh();
+}
+
+static int light_host_listener(const zmk_event_t *eh) {
+    const struct zmk_hid_indicators_changed *ind = as_zmk_hid_indicators_changed(eh);
+    if (ind) {
+        light_set_host_asleep(ind->indicators & KANA_BIT);
+        return ZMK_EV_EVENT_BUBBLE;
+    }
+
+    // A rebooted or unplugged host won't switch Kana off again, so don't wait
+    // for it.
+    if (as_zmk_usb_conn_state_changed(eh)) {
+        const enum usb_dc_status_code status = zmk_usb_get_status();
+        if (status == USB_DC_RESET || status == USB_DC_DISCONNECTED) {
+            light_set_host_asleep(false);
+        }
+    }
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(trackpad_light_host, light_host_listener);
+ZMK_SUBSCRIPTION(trackpad_light_host, zmk_hid_indicators_changed);
+ZMK_SUBSCRIPTION(trackpad_light_host, zmk_usb_conn_state_changed);
+#endif
 
 static int zmk_trackpad_scroll_light_init(void) {
 #if IS_ENABLED(CONFIG_SETTINGS)
