@@ -57,6 +57,11 @@ int set_state(enum zmk_activity_state state) {
 
 enum zmk_activity_state zmk_activity_get_state() { return activity_state; }
 
+void zmk_activity_poke(void) {
+    activity_last_uptime = k_uptime_get();
+    set_state(ZMK_ACTIVITY_ACTIVE);
+}
+
 int activity_event_listener(const zmk_event_t *eh) {
     activity_last_uptime = k_uptime_get();
 

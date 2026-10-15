@@ -105,7 +105,9 @@ is not for everyday use.
 `CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT` drives the trackpad light pin from scroll
 mode: one level while a scroll-hold key is held or a scroll switch is on, the
 other otherwise. On the V2.1 keyboard the light goes out while scrolling.
-`CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT` swaps the two levels.
+`CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT` swaps the two levels. With
+`CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE` it also goes out with the key backlight
+when idle. Trackpad movement counts as activity for that timer.
 
 `zmk,behavior-trackpad-light` controls it from the keymap, with the parameters
 in `dt-bindings/zmk/trackpad.h`: `TPL_ON`, `TPL_OFF` and `TPL_TOG` (saved), and
@@ -113,8 +115,8 @@ in `dt-bindings/zmk/trackpad.h`: `TPL_ON`, `TPL_OFF` and `TPL_TOG` (saved), and
 the keyboard lock does.
 
 With `CONFIG_ZMK_TRACKPAD_LIGHT_HOST_SLEEP` (on by default) the host can also
-hold the light off by switching the keyboard's Kana LED on. A sleep service
-uses this to put the light out with the screen
+hold the light, and the key backlight, off by switching the keyboard's Kana
+LED on. A sleep service uses this to put them out with the screen
 ([jhob101/uconsole-sleep-hack2you-kb-2.1](https://github.com/jhob101/uconsole-sleep-hack2you-kb-2.1)).
 A USB reset or disconnect lets it back on.
 

@@ -11,6 +11,7 @@ int zmk_backlight_off();
 int zmk_backlight_toggle();
 int zmk_backlight_suspend();
 int zmk_backlight_resume();
+int zmk_backlight_set_host_asleep(bool asleep);
 bool zmk_backlight_is_on();
 
 int zmk_backlight_set_brt(uint8_t brightness);
