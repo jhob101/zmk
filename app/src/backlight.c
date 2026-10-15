@@ -47,8 +47,12 @@ static struct backlight_state state = {.brightness = CONFIG_ZMK_BACKLIGHT_BRT_ST
 // what lets resume bring back exactly what was there before. Not persisted.
 static bool suspended = false;
 
+// Held off the same way while the host is asleep (see trackpad_scroll_light.c).
+// Kept apart from suspended so waking the host while locked leaves it off.
+static bool host_asleep = false;
+
 static int zmk_backlight_update() {
-    uint8_t brt = suspended ? 0 : zmk_backlight_get_brt();
+    uint8_t brt = (suspended || host_asleep) ? 0 : zmk_backlight_get_brt();
     LOG_DBG("Update backlight brightness: %d%%", brt);
 
     for (int i = 0; i < BACKLIGHT_NUM_LEDS; i++) {
@@ -137,6 +141,11 @@ int zmk_backlight_suspend() {
 
 int zmk_backlight_resume() {
     suspended = false;
+    return zmk_backlight_update();
+}
+
+int zmk_backlight_set_host_asleep(bool asleep) {
+    host_asleep = asleep;
     return zmk_backlight_update();
 }
 

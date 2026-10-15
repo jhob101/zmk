@@ -113,8 +113,8 @@ in `dt-bindings/zmk/trackpad.h`: `TPL_ON`, `TPL_OFF` and `TPL_TOG` (saved), and
 the keyboard lock does.
 
 With `CONFIG_ZMK_TRACKPAD_LIGHT_HOST_SLEEP` (on by default) the host can also
-hold the light off by switching the keyboard's Kana LED on. A sleep service
-uses this to put the light out with the screen
+hold the light, and the key backlight, off by switching the keyboard's Kana
+LED on. A sleep service uses this to put them out with the screen
 ([jhob101/uconsole-sleep-hack2you-kb-2.1](https://github.com/jhob101/uconsole-sleep-hack2you-kb-2.1)).
 A USB reset or disconnect lets it back on.
 

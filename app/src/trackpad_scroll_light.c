@@ -20,6 +20,9 @@
 #include <zmk/usb.h>
 #include <zmk/events/hid_indicators_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT)
+#include <zmk/backlight.h>
+#endif
 #endif
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
@@ -38,7 +41,8 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 // can be switched off from the keymap (zmk,behavior-trackpad-light, saved),
 // and the keyboard lock holds it off while locked. The host can also hold it
 // off by switching on the Kana LED (CONFIG_ZMK_TRACKPAD_LIGHT_HOST_SLEEP), which
-// is how a sleep service puts it out with the screen. Whether 100% means lit or
+// is how a sleep service puts it out with the screen. The key backlight goes
+// off with it. Whether 100% means lit or
 // dark depends on how the board wires the light, so
 // CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT swaps the two levels.
 //
@@ -135,6 +139,9 @@ static void light_set_host_asleep(bool asleep) {
     }
     light_host_asleep = asleep;
     light_refresh();
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT)
+    zmk_backlight_set_host_asleep(asleep);
+#endif
 }
 
 static int light_host_listener(const zmk_event_t *eh) {
