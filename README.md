@@ -105,7 +105,9 @@ is not for everyday use.
 `CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT` drives the trackpad light pin from scroll
 mode: one level while a scroll-hold key is held or a scroll switch is on, the
 other otherwise. On the V2.1 keyboard the light goes out while scrolling.
-`CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT` swaps the two levels.
+`CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT` swaps the two levels. With
+`CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE` it also goes out with the key backlight
+when idle. Trackpad movement counts as activity for that timer.
 
 `zmk,behavior-trackpad-light` controls it from the keymap, with the parameters
 in `dt-bindings/zmk/trackpad.h`: `TPL_ON`, `TPL_OFF` and `TPL_TOG` (saved), and

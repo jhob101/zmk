@@ -37,6 +37,7 @@ LOG_MODULE_REGISTER(zmk, CONFIG_ZMK_LOG_LEVEL);
 // modifier state from this thread is what raced against its blocking I2C
 // reads in an earlier hold-Shift-to-scroll attempt.
 #include <zmk/trackpad.h>
+#include <zmk/activity.h>
 
 // fix9900: the trackpad-scroll condition, magnitude, and axis-lock math were
 // all confirmed correct via live libinput/browser captures, but events
@@ -131,6 +132,11 @@ int main(void) {
                 // released in one jump when it is switched back on.
                 x = 0;
                 y = 0;
+            }
+            if (x != 0 || y != 0) {
+                // Trackpad use counts as activity, so the idle timer doesn't
+                // put the backlight and trackpad light out while it's in use.
+                zmk_activity_poke();
             }
             // fix9900: originally gated on CapsLock/ScrollLock HID indicator
             // state, which meant toggling CapsLock for normal typing

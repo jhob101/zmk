@@ -14,6 +14,12 @@
 
 #include <zmk/trackpad.h>
 
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE)
+#include <zmk/activity.h>
+#include <zmk/event_manager.h>
+#include <zmk/events/activity_state_changed.h>
+#endif
+
 #if IS_ENABLED(CONFIG_ZMK_TRACKPAD_LIGHT_HOST_SLEEP)
 #include <dt-bindings/zmk/hid_usage.h>
 #include <zmk/event_manager.h>
@@ -42,7 +48,8 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 // and the keyboard lock holds it off while locked. The host can also hold it
 // off by switching on the Kana LED (CONFIG_ZMK_TRACKPAD_LIGHT_HOST_SLEEP), which
 // is how a sleep service puts it out with the screen. The key backlight goes
-// off with it. Whether 100% means lit or
+// off with it. And with CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE it goes off with the
+// key backlight when the keyboard and trackpad have been idle. Whether 100% means lit or
 // dark depends on how the board wires the light, so
 // CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT swaps the two levels.
 //
@@ -55,9 +62,9 @@ BUILD_ASSERT(DT_HAS_CHOSEN(zmk_indicator_capslock),
 
 static const struct device *const light_dev = DEVICE_DT_GET(DT_CHOSEN(zmk_indicator_capslock));
 
-// The light is lit only when all four allow it: the user has it switched
-// on (saved), the keyboard is not locked, the host is not asleep, and the
-// trackpad is not scrolling. Locked and asleep are kept apart so waking the
+// The light is lit only when all of these allow it: the user has it switched
+// on (saved), the keyboard is not locked, the host is not asleep, the
+// keyboard is not idle, and the trackpad is not scrolling. Locked and asleep are kept apart so waking the
 // host while locked leaves the light off.
 #define LEVEL_LIT (IS_ENABLED(CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT) ? 100 : 0)
 #define LEVEL_DARK (IS_ENABLED(CONFIG_ZMK_TRACKPAD_SCROLL_LIGHT_INVERT) ? 0 : 100)
@@ -65,6 +72,7 @@ static const struct device *const light_dev = DEVICE_DT_GET(DT_CHOSEN(zmk_indica
 static bool light_enabled = true;
 static bool light_locked;
 static bool light_host_asleep;
+static bool light_idle;
 static bool light_scrolling;
 
 static void light_refresh(void) {
@@ -72,7 +80,8 @@ static void light_refresh(void) {
         return;
     }
 
-    const bool lit = light_enabled && !light_locked && !light_host_asleep && !light_scrolling;
+    const bool lit = light_enabled && !light_locked && !light_host_asleep && !light_idle &&
+                     !light_scrolling;
     int rc = led_set_brightness(light_dev, 0, lit ? LEVEL_LIT : LEVEL_DARK);
     if (rc != 0) {
         LOG_ERR("Failed to set the trackpad light: %d", rc);
@@ -165,6 +174,18 @@ static int light_host_listener(const zmk_event_t *eh) {
 ZMK_LISTENER(trackpad_light_host, light_host_listener);
 ZMK_SUBSCRIPTION(trackpad_light_host, zmk_hid_indicators_changed);
 ZMK_SUBSCRIPTION(trackpad_light_host, zmk_usb_conn_state_changed);
+#endif
+
+#if IS_ENABLED(CONFIG_ZMK_BACKLIGHT_AUTO_OFF_IDLE)
+// Follows the key backlight's idle timer (CONFIG_ZMK_IDLE_TIMEOUT).
+static int light_idle_listener(const zmk_event_t *eh) {
+    light_idle = zmk_activity_get_state() != ZMK_ACTIVITY_ACTIVE;
+    light_refresh();
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(trackpad_light_idle, light_idle_listener);
+ZMK_SUBSCRIPTION(trackpad_light_idle, zmk_activity_state_changed);
 #endif
 
 static int zmk_trackpad_scroll_light_init(void) {
